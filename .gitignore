@@ -1,0 +1,17 @@
+.vs/
+Debug/
+Release/
+x64/
+Win32/
+ipch/
+*.obj
+*.pdb
+*.ilk
+*.tlog
+*.log
+*.VC.db
+*.sdf
+*.opensdf
+backup_before_*/
+stable_background_restored_*/
+bg_diag_*.png
