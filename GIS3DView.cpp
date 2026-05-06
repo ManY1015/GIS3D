@@ -957,11 +957,47 @@ void CGIS3DView::OnExpObjectInspect()
 
 void CGIS3DView::OnExpTerrainQuery()
 {
+	osg::notify(osg::NOTICE) << "[ELEV-DIAG] OnExpTerrainQuery called" << std::endl;
+	BG_DIAG_LOG("[ELEV-DIAG] OnExpTerrainQuery called");
+
+	bool bHasTerrainLayer = false;
+	if (m_OSG && m_OSG->getRoot())
+	{
+		osg::Group* pRoot = m_OSG->getRoot();
+		for (unsigned int i = 0; i < pRoot->getNumChildren(); ++i)
+		{
+			osg::Node* pNode = pRoot->getChild(i);
+			if (!pNode)
+				continue;
+			CString strName = pNode->getName().c_str();
+			if (strName.Find(_T("地形")) >= 0 || strName.Find(_T("Terrain")) >= 0 || strName.Find(_T("terrain")) >= 0)
+			{
+				bHasTerrainLayer = true;
+				break;
+			}
+		}
+	}
+	osg::notify(osg::NOTICE) << "[ELEV-DIAG] OnExpTerrainQuery hasTerrainLayer=" << (bHasTerrainLayer ? "true" : "false") << std::endl;
+	BG_DIAG_LOG("[ELEV-DIAG] OnExpTerrainQuery hasTerrainLayer=" << (bHasTerrainLayer ? "true" : "false"));
+
 	CString strMsg;
 	if (EnsureExperimentFeatures() && m_pExperimentFeatures->ToggleTerrainQuery(strMsg))
+	{
 		UpdateTerrainStatus(strMsg);
+		bool bEnabled = m_pExperimentFeatures->IsTerrainQueryEnabled();
+		osg::notify(osg::NOTICE) << "[ELEV-DIAG] terrain query enabled after toggle=" << (bEnabled ? "true" : "false") << std::endl;
+		BG_DIAG_LOG("[ELEV-DIAG] terrain query enabled after toggle=" << (bEnabled ? "true" : "false"));
+		AfxMessageBox(bEnabled
+			? _T("已进入地形高程查询模式，请左键点击地形表面查询高程。")
+			: _T("已退出地形高程查询模式。"),
+			MB_OK | MB_ICONINFORMATION);
+	}
 	else
+	{
 		UpdateTerrainStatus(strMsg.IsEmpty() ? _T("锟斤拷锟轿高程诧拷询锟叫伙拷失锟杰★拷") : strMsg);
+		osg::notify(osg::NOTICE) << "[ELEV-DIAG] OnExpTerrainQuery failed" << std::endl;
+		BG_DIAG_LOG("[ELEV-DIAG] OnExpTerrainQuery failed");
+	}
 }
 
 void CGIS3DView::OnExpWireframe()

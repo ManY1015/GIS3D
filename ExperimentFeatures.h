@@ -33,6 +33,8 @@ public:
 	bool ToggleInspector(CString& strMessage);
 	bool ToggleTerrainQuery(CString& strMessage);
 	bool ToggleWireframe(CString& strMessage);
+	bool IsTerrainQueryEnabled() const { return m_bTerrainQueryEnabled; }
+	bool IsInspectorEnabled() const { return m_bInspectorEnabled; }
 
 	bool HandlePick(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa);
 

@@ -805,6 +805,7 @@ osg::Group* CSceneObject::CreateTerrain(CString& strDemName, CString& strImageNa
     pGeometry->setUseVertexBufferObjects(true);
 
     osg::ref_ptr<osg::Geode> pGeode = new osg::Geode;
+    pGeode->setName("__GIS3D_TERRAIN__");
     pGeode->addDrawable(pGeometry.get());
 
     bool bTextureLoaded = false;
@@ -870,9 +871,8 @@ osg::Group* CSceneObject::CreateTerrain(CString& strDemName, CString& strImageNa
     }
 
     osg::Group* pTerrain = new osg::Group;
+    pTerrain->setName("__GIS3D_TERRAIN__");
     pTerrain->addChild(pGeode.get());
-
-    FillSceneInfoFromGeo(pInfo, geoMeta);
 
     OSG_NOTICE << "CreateTerrain: 地形创建成功" << std::endl;
     return pTerrain;

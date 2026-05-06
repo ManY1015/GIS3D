@@ -1,4 +1,4 @@
-ï»¿#include "pch.h"
+#include "pch.h"
 #include "ExperimentFeatures.h"
 
 #include <atlimage.h>
@@ -23,12 +23,38 @@ namespace
 
 	bool IsTerrainLayerName(const CString& strLayerName)
 	{
-		return strLayerName.Find(_T("é¦æ¿èˆ°")) >= 0;
+		return strLayerName.Find(_T("µØÐÎ")) >= 0
+			|| strLayerName.Find(_T("Terrain")) >= 0
+			|| strLayerName.Find(_T("terrain")) >= 0
+			|| strLayerName.Find(_T("åœ°å½¢")) >= 0;
 	}
 
 	bool IsBatchModelLayerName(const CString& strLayerName)
 	{
-		return strLayerName.Left(3) == _T("å¦¯â€³ç€·_");
+		return strLayerName.Left(3) == _T("æ¨¡åž‹_");
+	}
+
+	const char* const kTerrainNodeMarker = "__GIS3D_TERRAIN__";
+	const char* const kTerrainLayerMarker = "__GIS3D_TERRAIN_LAYER__";
+
+	bool IsTerrainNodePath(const osg::NodePath& nodePath)
+	{
+		for (osg::NodePath::const_reverse_iterator it = nodePath.rbegin(); it != nodePath.rend(); ++it)
+		{
+			osg::Node* pNode = *it;
+			if (!pNode)
+				continue;
+
+			std::string strName = pNode->getName();
+			if (strName == kTerrainNodeMarker || strName == kTerrainLayerMarker)
+				return true;
+
+			CString strLayerName = strName.c_str();
+			if (IsTerrainLayerName(strLayerName))
+				return true;
+		}
+
+		return false;
 	}
 }
 
@@ -41,6 +67,13 @@ bool CExperimentPickHandler::handle(const osgGA::GUIEventAdapter& ea, osgGA::GUI
 {
 	if (!m_pOwner)
 		return false;
+
+	if (ea.getEventType() == osgGA::GUIEventAdapter::PUSH &&
+		ea.getButton() == osgGA::GUIEventAdapter::LEFT_MOUSE_BUTTON)
+	{
+		osg::notify(osg::NOTICE) << "[ELEV-DIAG] OSG pick handler received left push x=" << ea.getX() << " y=" << ea.getY() << std::endl;
+		BG_DIAG_LOG("[ELEV-DIAG] OSG pick handler received left push x=" << ea.getX() << " y=" << ea.getY());
+	}
 
 	return m_pOwner->HandlePick(ea, aa);
 }
@@ -275,6 +308,8 @@ bool CExperimentFeatures::ToggleInspector(CString& strMessage)
 bool CExperimentFeatures::ToggleTerrainQuery(CString& strMessage)
 {
 	m_bTerrainQueryEnabled = !m_bTerrainQueryEnabled;
+	osg::notify(osg::NOTICE) << "[ELEV-DIAG] ToggleTerrainQuery called enabled=" << (m_bTerrainQueryEnabled ? "true" : "false") << std::endl;
+	BG_DIAG_LOG("[ELEV-DIAG] ToggleTerrainQuery called enabled=" << (m_bTerrainQueryEnabled ? "true" : "false"));
 	if (m_bTerrainQueryEnabled)
 	{
 		m_bInspectorEnabled = false;
@@ -336,10 +371,17 @@ bool CExperimentFeatures::ToggleWireframe(CString& strMessage)
 bool CExperimentFeatures::PickFirstIntersection(const osgGA::GUIEventAdapter& ea, osgUtil::LineSegmentIntersector::Intersection& hit)
 {
 	if (!EnsureReady())
+	{
+		osg::notify(osg::NOTICE) << "[ELEV-DIAG] PickFirstIntersection failed: scene/viewer/root not ready" << std::endl;
+		BG_DIAG_LOG("[ELEV-DIAG] PickFirstIntersection failed: scene/viewer/root not ready");
 		return false;
+	}
 
 	osgUtil::LineSegmentIntersector::Intersections intersections;
-	if (!m_pScene->getViewer()->computeIntersections(ea.getX(), ea.getY(), intersections))
+	bool bHit = m_pScene->getViewer()->computeIntersections(ea.getX(), ea.getY(), intersections);
+	osg::notify(osg::NOTICE) << "[ELEV-DIAG] computeIntersections x=" << ea.getX() << " y=" << ea.getY() << " hit=" << (bHit ? "true" : "false") << " count=" << intersections.size() << std::endl;
+	BG_DIAG_LOG("[ELEV-DIAG] computeIntersections x=" << ea.getX() << " y=" << ea.getY() << " hit=" << (bHit ? "true" : "false") << " count=" << intersections.size());
+	if (!bHit)
 		return false;
 
 	hit = *intersections.begin();
@@ -437,15 +479,42 @@ void CExperimentFeatures::ShowBoundingBox(osg::Node* pNode)
 
 bool CExperimentFeatures::HandlePick(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter&)
 {
+	osg::notify(osg::NOTICE) << "[ELEV-DIAG] HandlePick eventType=" << ea.getEventType() << " button=" << ea.getButton() << " terrainQuery=" << (m_bTerrainQueryEnabled ? "true" : "false") << " inspector=" << (m_bInspectorEnabled ? "true" : "false") << std::endl;
+	BG_DIAG_LOG("[ELEV-DIAG] HandlePick eventType=" << ea.getEventType() << " button=" << ea.getButton() << " terrainQuery=" << (m_bTerrainQueryEnabled ? "true" : "false") << " inspector=" << (m_bInspectorEnabled ? "true" : "false"));
 	if (ea.getEventType() != osgGA::GUIEventAdapter::PUSH || ea.getButton() != osgGA::GUIEventAdapter::LEFT_MOUSE_BUTTON)
+	{
+		osg::notify(osg::NOTICE) << "[ELEV-DIAG] HandlePick ignored: not left mouse push" << std::endl;
+		BG_DIAG_LOG("[ELEV-DIAG] HandlePick ignored: not left mouse push");
 		return false;
+	}
 
 	if (!m_bInspectorEnabled && !m_bTerrainQueryEnabled)
+	{
+		osg::notify(osg::NOTICE) << "[ELEV-DIAG] HandlePick ignored: no pick mode enabled" << std::endl;
+		BG_DIAG_LOG("[ELEV-DIAG] HandlePick ignored: no pick mode enabled");
 		return false;
+	}
+
+	osgViewer::Viewer* pViewer = EnsureReady() ? m_pScene->getViewer() : NULL;
+	osg::Camera* pCamera = pViewer ? pViewer->getCamera() : NULL;
+	if (pCamera && pCamera->getViewport())
+	{
+		osg::notify(osg::NOTICE) << "[ELEV-DIAG] camera viewport x=" << pCamera->getViewport()->x() << " y=" << pCamera->getViewport()->y() << " w=" << pCamera->getViewport()->width() << " h=" << pCamera->getViewport()->height() << std::endl;
+		BG_DIAG_LOG("[ELEV-DIAG] camera viewport x=" << pCamera->getViewport()->x() << " y=" << pCamera->getViewport()->y() << " w=" << pCamera->getViewport()->width() << " h=" << pCamera->getViewport()->height());
+	}
+	else
+	{
+		osg::notify(osg::NOTICE) << "[ELEV-DIAG] camera or viewport is null" << std::endl;
+		BG_DIAG_LOG("[ELEV-DIAG] camera or viewport is null");
+	}
 
 	osgUtil::LineSegmentIntersector::Intersection hit;
 	if (!PickFirstIntersection(ea, hit))
+	{
+		osg::notify(osg::NOTICE) << "[ELEV-DIAG] no intersection hit; user may have clicked empty space or non-pickable surface" << std::endl;
+		BG_DIAG_LOG("[ELEV-DIAG] no intersection hit; user may have clicked empty space or non-pickable surface");
 		return false;
+	}
 
 	if (m_bInspectorEnabled)
 	{
@@ -468,12 +537,23 @@ bool CExperimentFeatures::HandlePick(const osgGA::GUIEventAdapter& ea, osgGA::GU
 		osg::Vec3d point = hit.getWorldIntersectPoint();
 		osg::Node* pLayerNode = FindNamedLayerFromPath(hit.nodePath);
 		CString strLayerName = GetNodeLayerName(pLayerNode);
-		if (!IsTerrainLayerName(strLayerName))
+		osg::notify(osg::NOTICE) << "[ELEV-DIAG] terrain hit worldPoint=(" << point.x() << "," << point.y() << "," << point.z() << ") layerName=" << (LPCTSTR)strLayerName << std::endl;
+		BG_DIAG_LOG("[ELEV-DIAG] terrain hit worldPoint=(" << point.x() << "," << point.y() << "," << point.z() << ") layerName=" << (LPCTSTR)strLayerName);
+		if (!IsTerrainNodePath(hit.nodePath))
+		{
+			osg::notify(osg::NOTICE) << "[ELEV-DIAG] terrain recognition failed for layerName=" << (LPCTSTR)strLayerName << std::endl;
+			BG_DIAG_LOG("[ELEV-DIAG] terrain recognition failed for layerName=" << (LPCTSTR)strLayerName);
 			return false;
+		}
+		osg::notify(osg::NOTICE) << "[ELEV-DIAG] terrain node marker found" << std::endl;
+		BG_DIAG_LOG("[ELEV-DIAG] terrain node marker found");
 
+		CString strDisplayLayer = IsTerrainLayerName(strLayerName) ? strLayerName : _T("µØÐÎ");
 		CString strMsg;
-		strMsg.Format(_T("Terrain Query\r\nLayer: %s\r\nXY: (%.3f, %.3f)\r\nElevation: %.3f"),
-			strLayerName, point.x(), point.y(), point.z());
+		strMsg.Format(_T("Terrain Query\r\nLayer: %s\r\nXY: (%.3f, %.3f)\r\nScene Elevation: %.3f"),
+			strDisplayLayer, point.x(), point.y(), point.z());
+		osg::notify(osg::NOTICE) << "[ELEV-DIAG] showing terrain query message box" << std::endl;
+		BG_DIAG_LOG("[ELEV-DIAG] showing terrain query message box");
 		AfxMessageBox(strMsg, MB_OK | MB_ICONINFORMATION);
 		return true;
 	}
