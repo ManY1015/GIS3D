@@ -60,6 +60,9 @@ BEGIN_MESSAGE_MAP(CGIS3DView, CView)
 	ON_COMMAND(ID_EXP_SCREENSHOT, &CGIS3DView::OnExpScreenshot)
 	ON_COMMAND(ID_EXP_OBJECT_INSPECT, &CGIS3DView::OnExpObjectInspect)
 	ON_COMMAND(ID_EXP_TERRAIN_QUERY, &CGIS3DView::OnExpTerrainQuery)
+	ON_COMMAND(ID_EXP_TERRAIN_PROFILE, &CGIS3DView::OnExpTerrainProfile)
+	ON_COMMAND(ID_EXP_FLOOD_SIMULATION, &CGIS3DView::OnExpFloodSimulation)
+	ON_COMMAND(ID_EXP_CLEAR_ANALYSIS_OVERLAY, &CGIS3DView::OnExpClearAnalysisOverlay)
 	ON_COMMAND(ID_EXP_WIREFRAME, &CGIS3DView::OnExpWireframe)
 	ON_BN_CLICKED(IDC_VIEW_HANDLE_UP, &CGIS3DView::OnViewHandleUp)
 	ON_BN_CLICKED(IDC_VIEW_HANDLE_DOWN, &CGIS3DView::OnViewHandleDown)
@@ -746,10 +749,47 @@ void CGIS3DView::OnLoadTerrain()
 	}
 }
 
+
+
+static CString ExtractLayerNameFromPath(const CString& fullPath)
+{
+	CString name = fullPath;
+	int posBackslash = name.ReverseFind(_T('\\'));
+	int posSlash = name.ReverseFind(_T('/'));
+	int pos = posBackslash > posSlash ? posBackslash : posSlash;
+	if (pos >= 0)
+		name = name.Mid(pos + 1);
+
+	int dot = name.ReverseFind(_T('.'));
+	if (dot > 0)
+		name = name.Left(dot);
+
+	name.Trim();
+	return name;
+}
+
+static CString ExtractFileNameFromPath(const CString& fullPath)
+{
+	CString name = fullPath;
+	int posBackslash = name.ReverseFind(_T('\\'));
+	int posSlash = name.ReverseFind(_T('/'));
+	int pos = posBackslash > posSlash ? posBackslash : posSlash;
+	if (pos >= 0)
+		name = name.Mid(pos + 1);
+	name.Trim();
+	return name;
+}
+
+static void OutputBatchDebug(const CString& message)
+{
+	CString line = _T("[BATCH] ");
+	line += message;
+	line += _T("\r\n");
+	OutputDebugString(line);
+}
+
 void CGIS3DView::OnLoadModel()
 {
-	//ï¿½Ú´Ë¼Ó¶Ô»ï¿½ï¿½ï¿½Ñ¡ï¿½ï¿½Ä£ï¿½ï¿½ï¿½Ä¼ï¿½
-
 	CString strFilter = _T("3D Model Files (*.osgb)|*.osgb|All Files (*.*)|*.*||");
 	CFileDialog fdlg(TRUE, NULL, NULL, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, strFilter, NULL);
 	fdlg.m_ofn.lpstrTitle = _T("Select Model File");
@@ -761,53 +801,53 @@ void CGIS3DView::OnLoadModel()
 
 	SceneObjectInfo info;
 	memset(&info, 0x00, sizeof(SceneObjectInfo));
-	CSceneObject obj;	
-	info.pObject = obj.LoadModel(strModel);//ï¿½Ëºï¿½ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ï¿½ï¿½Òªï¿½Ô¼ï¿½ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú¸Ãºï¿½ï¿½ï¿½ï¿½Ï°ï¿½ï¿½Ò¼ï¿½ï¿½ï¿½ï¿½ï¿½×ªï¿½ï¿½ï¿½ï¿½ï¿½å¡±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ãºï¿½ï¿½ï¿½
+	CSceneObject obj;
+	info.pObject = obj.LoadModel(strModel);
 	if (!info.pObject)
+	{
+		AfxMessageBox(_T("Ä£ÐÍ¼ÓÔØÊ§°Ü£¬Çë¼ì²éÎÄ¼þ¸ñÊ½»òÂ·¾¶¡£"), MB_OK | MB_ICONERROR);
 		return;
+	}
 
-	lstrcpy(info.szLayerName, "Model");
+	CString strLayerName = ExtractLayerNameFromPath(strModel);
+	if (strLayerName.IsEmpty())
+		strLayerName = _T("Model");
+	lstrcpyn(info.szLayerName, strLayerName, _countof(info.szLayerName));
 
-	g_bInit = true;//ï¿½ï¿½Òªï¿½Ô´ï¿½Ä¿ï¿½ï¿½Îªï¿½ï¿½ï¿½Ä½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îªï¿½ï¿?
+	g_bInit = true;
 
 	AddEvent(info);
 	CMainFrame* pFrame = DYNAMIC_DOWNCAST(CMainFrame, AfxGetMainWnd());
 	if (pFrame)
-		pFrame->AddLayerToPane(info.szLayerName);
+		pFrame->AddLayerToPane(strLayerName);
 }
 
 void CGIS3DView::OnLoadBatchModels()
 {
-	// 1. ï¿½ï¿½ï¿½Ð¶Ï³ï¿½ï¿½ï¿½ï¿½Ç·ï¿½ï¿½Ñ¾ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿?
 	if (!m_OSG || !m_OSG->getViewer())
 	{
-		AfxMessageBox(_T("ï¿½ï¿½Î¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î´ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£ï¿½Í¡ï¿½"), MB_OK | MB_ICONWARNING);
+		AfxMessageBox(_T("ÈýÎ¬³¡¾°ÉÐÎ´³õÊ¼»¯£¬ÔÝÊ±ÎÞ·¨ÅúÁ¿¼ÓÔØÄ£ÐÍ¡£"), MB_OK | MB_ICONWARNING);
 		return;
 	}
 
 	CString strFilter = _T("3D Model Files (*.osgb)|*.osgb|All Files (*.*)|*.*||");
-
-	// 2. ï¿½ï¿½Ñ¡ï¿½Ô»ï¿½ï¿½ò£¬¼ï¿½ï¿½ï¿½ OFN_EXPLORER ï¿½ï¿½ï¿½ï¿½
 	CFileDialog fdlg(TRUE, _T("osgb"), NULL,
 		OFN_ALLOWMULTISELECT | OFN_HIDEREADONLY | OFN_EXPLORER,
 		strFilter, NULL);
 	fdlg.m_ofn.lpstrTitle = _T("Select Models");
 
-	// 3. ï¿½ï¿½Ñ¡Ê±ï¿½ï¿½ï¿½ï¿½ï¿½á¹©ï¿½ã¹»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	const int FILE_LIST_BUFFER_SIZE = 8192;
 	TCHAR* pBuffer = new TCHAR[FILE_LIST_BUFFER_SIZE];
 	memset(pBuffer, 0, sizeof(TCHAR) * FILE_LIST_BUFFER_SIZE);
 	fdlg.m_ofn.lpstrFile = pBuffer;
 	fdlg.m_ofn.nMaxFile = FILE_LIST_BUFFER_SIZE;
 
-	// 4. ï¿½Ã»ï¿½È¡ï¿½ï¿½Ê±Ö±ï¿½ï¿½ï¿½Ë³ï¿½
 	if (fdlg.DoModal() != IDOK)
 	{
 		delete[] pBuffer;
 		return;
 	}
 
-	// 5. ï¿½ï¿½ï¿½ï¿½ï¿½Ú¼ï¿½ï¿½ï¿½Ê¾ï¿½È´ï¿½ï¿½ï¿½ï¿?
 	CWaitCursor wait;
 
 	bool bLoaded = false;
@@ -815,8 +855,6 @@ void CGIS3DView::OnLoadBatchModels()
 	int nSuccessCount = 0;
 	int nFailCount = 0;
 	int nTotalCount = 0;
-
-	// ï¿½ï¿½ï¿½ï¿½Â¼Ç° 5 ï¿½ï¿½Ê§ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½Ì«ï¿½ï¿½
 	CString strFailedList;
 
 	POSITION pos = fdlg.GetStartPosition();
@@ -824,6 +862,10 @@ void CGIS3DView::OnLoadBatchModels()
 	{
 		CString path = fdlg.GetNextPathName(pos);
 		nTotalCount++;
+
+		CString dbgPath;
+		dbgPath.Format(_T("original CString path = %s"), path);
+		OutputBatchDebug(dbgPath);
 
 		SceneObjectInfo info;
 		memset(&info, 0x00, sizeof(SceneObjectInfo));
@@ -833,17 +875,23 @@ void CGIS3DView::OnLoadBatchModels()
 
 		if (info.pObject)
 		{
-			// ï¿½ï¿½ï¿½ï¿½ï¿½È¼ï¿½ï¿½ï¿½Ê¹ï¿½Ã¶Ì±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú²ï¿½Öªï¿½ï¿?szLayerName ï¿½ï¿½ï¿½ï¿½Ê±Ð´ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½
-			CString strLayerName;
-			strLayerName.Format(_T("Ä£ï¿½ï¿½_%03d"), nModelIndex);
+			CString strLayerName = ExtractLayerNameFromPath(path);
+			if (strLayerName.IsEmpty())
+				strLayerName.Format(_T("Model_%03d"), nModelIndex);
 
-			lstrcpy(info.szLayerName, strLayerName);
+			CString dbgLayer;
+			dbgLayer.Format(_T("extracted layerName = %s"), strLayerName);
+			OutputBatchDebug(dbgLayer);
+			dbgLayer.Format(_T("osgPath length = %d"), path.GetLength());
+			OutputBatchDebug(dbgLayer);
+			OutputBatchDebug(_T("load success = true"));
 
+			lstrcpyn(info.szLayerName, strLayerName, _countof(info.szLayerName));
 			AddEvent(info);
 
 			CMainFrame* pFrame = DYNAMIC_DOWNCAST(CMainFrame, AfxGetMainWnd());
 			if (pFrame)
-				pFrame->AddLayerToPane(info.szLayerName);
+				pFrame->AddLayerToPane(strLayerName);
 
 			bLoaded = true;
 			nSuccessCount++;
@@ -852,62 +900,55 @@ void CGIS3DView::OnLoadBatchModels()
 		else
 		{
 			nFailCount++;
+			OutputBatchDebug(_T("load success = false"));
 
-			int nPos = path.ReverseFind(_T('\\'));
-			CString strFileName = (nPos >= 0) ? path.Mid(nPos + 1) : path;
+			CString strFileName = ExtractFileNameFromPath(path);
+			if (strFileName.IsEmpty())
+				strFileName = path;
 
 			if (nFailCount <= 5)
 			{
 				if (!strFailedList.IsEmpty())
 					strFailedList += _T("\n");
-
 				strFailedList += strFileName;
 			}
 		}
 	}
 
-	// 6. Ö»ï¿½ï¿½ï¿½ï¿½ï¿½Ù³É¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½Ä£ï¿½Í£ï¿½ï¿½Å´ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½Îªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿?
 	if (bLoaded)
-	{
 		g_bInit = true;
-	}
 
-	// 7. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	CString strMsg;
 	if (nSuccessCount > 0 && nFailCount == 0)
 	{
-		strMsg.Format(_T("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É£ï¿½\nï¿½ï¿½Ñ¡ï¿½ï¿½ %d ï¿½ï¿½ï¿½Ä¼ï¿½\nï¿½É¹ï¿½ï¿½ï¿½ï¿½ï¿½ %d ï¿½ï¿½\nÊ§ï¿½ï¿½ %d ï¿½ï¿½"),
+		strMsg.Format(_T("ÅúÁ¿¼ÓÔØÍê³É£¡\nÒÑÑ¡Ôñ %d ¸öÎÄ¼þ\n³É¹¦¼ÓÔØ %d ¸ö\nÊ§°Ü %d ¸ö"),
 			nTotalCount, nSuccessCount, nFailCount);
 		AfxMessageBox(strMsg, MB_OK | MB_ICONINFORMATION);
 	}
 	else if (nSuccessCount > 0 && nFailCount > 0)
 	{
-		strMsg.Format(_T("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É£ï¿½ï¿½ï¿½ï¿½Ð²ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½Ê§ï¿½Ü¡ï¿½\nï¿½ï¿½Ñ¡ï¿½ï¿½ %d ï¿½ï¿½ï¿½Ä¼ï¿½\nï¿½É¹ï¿½ï¿½ï¿½ï¿½ï¿½ %d ï¿½ï¿½\nÊ§ï¿½ï¿½ %d ï¿½ï¿½"),
+		strMsg.Format(_T("ÅúÁ¿¼ÓÔØÍê³É£¬µ«ÓÐ²¿·ÖÎÄ¼þ¼ÓÔØÊ§°Ü¡£\nÒÑÑ¡Ôñ %d ¸öÎÄ¼þ\n³É¹¦¼ÓÔØ %d ¸ö\nÊ§°Ü %d ¸ö"),
 			nTotalCount, nSuccessCount, nFailCount);
-
 		if (!strFailedList.IsEmpty())
 		{
-			strMsg += _T("\n\nÊ§ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¾Ç?ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½\n");
+			strMsg += _T("\n\nÊ§°ÜÎÄ¼þ£¨×î¶àÏÔÊ¾Ç° 5 ¸ö£©£º\n");
 			strMsg += strFailedList;
 		}
-
 		AfxMessageBox(strMsg, MB_OK | MB_ICONWARNING);
 	}
 	else
 	{
-		strMsg.Format(_T("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê§ï¿½Ü£ï¿½\nï¿½ï¿½Ñ¡ï¿½ï¿½ %d ï¿½ï¿½ï¿½Ä¼ï¿½\nï¿½É¹ï¿½ï¿½ï¿½ï¿½ï¿½ %d ï¿½ï¿½\nÊ§ï¿½ï¿½ %d ï¿½ï¿½"),
+		strMsg.Format(_T("ÅúÁ¿¼ÓÔØÊ§°Ü£¡\nÒÑÑ¡Ôñ %d ¸öÎÄ¼þ\n³É¹¦¼ÓÔØ %d ¸ö\nÊ§°Ü %d ¸ö"),
 			nTotalCount, nSuccessCount, nFailCount);
-
 		if (!strFailedList.IsEmpty())
 		{
-			strMsg += _T("\n\nÊ§ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¾Ç?ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½\n");
+			strMsg += _T("\n\nÊ§°ÜÎÄ¼þ£¨×î¶àÏÔÊ¾Ç° 5 ¸ö£©£º\n");
 			strMsg += strFailedList;
 		}
-
 		AfxMessageBox(strMsg, MB_OK | MB_ICONERROR);
 	}
 
-    delete[] pBuffer;
+	delete[] pBuffer;
 }
 
 void CGIS3DView::OnExpSaveBookmark()
@@ -1009,3 +1050,30 @@ void CGIS3DView::OnExpWireframe()
 		UpdateTerrainStatus(strMsg.IsEmpty() ? _T("ï¿½ß¿ï¿½Ä£Ê½ï¿½Ð»ï¿½Ê§ï¿½Ü¡ï¿½") : strMsg);
 }
 
+
+void CGIS3DView::OnExpTerrainProfile()
+{
+	CString strMsg;
+	if (EnsureExperimentFeatures() && m_pExperimentFeatures->EnterTerrainProfileMode(strMsg))
+		UpdateTerrainStatus(strMsg);
+	else
+		UpdateTerrainStatus(strMsg.IsEmpty() ? _T("µØÐÎÆÊÃæ·ÖÎöÆô¶¯Ê§°Ü¡£") : strMsg);
+}
+
+void CGIS3DView::OnExpFloodSimulation()
+{
+	CString strMsg;
+	if (EnsureExperimentFeatures() && m_pExperimentFeatures->RunFloodSimulation(strMsg))
+		UpdateTerrainStatus(strMsg);
+	else
+		UpdateTerrainStatus(strMsg.IsEmpty() ? _T("Ë®Î»ÑÍÃ»Ä£ÄâÉú³ÉÊ§°Ü¡£") : strMsg);
+}
+
+void CGIS3DView::OnExpClearAnalysisOverlay()
+{
+	CString strMsg;
+	if (EnsureExperimentFeatures() && m_pExperimentFeatures->ClearAnalysisOverlay(strMsg))
+		UpdateTerrainStatus(strMsg);
+	else
+		UpdateTerrainStatus(strMsg.IsEmpty() ? _T("Çå³ý·ÖÎö½á¹ûÊ§°Ü¡£") : strMsg);
+}

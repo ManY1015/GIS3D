@@ -161,6 +161,9 @@ BEGIN
         MENUITEM "恢复视角书签",                      ID_EXP_BOOKMARK_RESTORE
         MENUITEM "对象包围盒与属性查询",               ID_EXP_OBJECT_INSPECT
         MENUITEM "地形高程查询",                      ID_EXP_TERRAIN_QUERY
+        MENUITEM "地形剖面分析",                      ID_EXP_TERRAIN_PROFILE
+        MENUITEM "水位淹没模拟",                      ID_EXP_FLOOD_SIMULATION
+        MENUITEM "清除分析结果",                      ID_EXP_CLEAR_ANALYSIS_OVERLAY
         MENUITEM "线框检查模式",                      ID_EXP_WIREFRAME
         MENUITEM "导出场景截图",                      ID_EXP_SCREENSHOT
     END
@@ -273,6 +276,25 @@ BEGIN
     PUSHBUTTON      "取消",IDCANCEL,124,56,50,14
 END
 
+
+IDD_FLOOD_LEVEL_DIALOG DIALOGEX 0, 0, 210, 72
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "水位淹没模拟"
+FONT 9, "MS Shell Dlg", 0, 0, 0x1
+BEGIN
+    LTEXT           "请输入水位场景高程值：",IDC_STATIC,10,14,100,10
+    EDITTEXT        IDC_EDIT_WATER_LEVEL,112,12,82,14,ES_AUTOHSCROLL
+    DEFPUSHBUTTON   "确定",IDOK,86,46,50,14
+    PUSHBUTTON      "取消",IDCANCEL,144,46,50,14
+END
+
+IDD_TERRAIN_PROFILE_RESULT_DIALOG DIALOGEX 0, 0, 560, 360
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "地形剖面分析结果"
+FONT 9, "MS Shell Dlg", 0, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "确定",IDOK,502,338,50,14
+END
 /////////////////////////////////////////////////////////////////////////////
 //
 // Version

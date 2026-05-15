@@ -1,5 +1,5 @@
 
-// GIS3DView.h: CGIS3DView ��Ľӿ�
+// GIS3DView.h: CGIS3DView interface
 //
 
 #pragma once
@@ -10,11 +10,11 @@ class CExperimentFeatures;
 
 class CGIS3DView : public CView
 {
-protected: // �������л�����
+protected: // ��
 	CGIS3DView() noexcept;
 	DECLARE_DYNCREATE(CGIS3DView)
 
-// ����
+// 
 public:
 	CGIS3DDoc* GetDocument() const;
 
@@ -65,19 +65,19 @@ public:
 
 	CExperimentFeatures* m_pExperimentFeatures;
 	bool EnsureExperimentFeatures();
-// ����
+// 
 public:
 
-// ��д
+//
 public:
-	virtual void OnDraw(CDC* pDC);  // ��д�Ի��Ƹ���ͼ
+	virtual void OnDraw(CDC* pDC);  // ��???
 	virtual BOOL PreCreateWindow(CREATESTRUCT& cs);
 protected:
 	virtual BOOL OnPreparePrinting(CPrintInfo* pInfo);
 	virtual void OnBeginPrinting(CDC* pDC, CPrintInfo* pInfo);
 	virtual void OnEndPrinting(CDC* pDC, CPrintInfo* pInfo);
 
-// ʵ��
+// ?
 public:
 	virtual ~CGIS3DView();
 #ifdef _DEBUG
@@ -87,7 +87,7 @@ public:
 
 protected:
 
-// ���ɵ���Ϣӳ�亯��
+//
 protected:
 	afx_msg void OnFilePrintPreview();
 	afx_msg void OnRButtonUp(UINT nFlags, CPoint point);
@@ -116,10 +116,13 @@ public:
 	afx_msg void OnExpScreenshot();
 	afx_msg void OnExpObjectInspect();
 	afx_msg void OnExpTerrainQuery();
+	afx_msg void OnExpTerrainProfile();
+	afx_msg void OnExpFloodSimulation();
+	afx_msg void OnExpClearAnalysisOverlay();
 	afx_msg void OnExpWireframe();
 };
 
-#ifndef _DEBUG  // GIS3DView.cpp �еĵ��԰汾
+#ifndef _DEBUG  // GIS3DView.cpp ��??��
 inline CGIS3DDoc* CGIS3DView::GetDocument() const
    { return reinterpret_cast<CGIS3DDoc*>(m_pDocument); }
 #endif
